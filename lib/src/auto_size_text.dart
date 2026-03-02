@@ -254,9 +254,7 @@ class _AutoSizeTextState extends State<AutoSizeText> {
 
       _validateProperties(style, maxLines);
 
-      final result = _calculateFontSize(size, style, maxLines);
-      final fontSize = result[0] as double;
-      final textFits = result[1] as bool;
+      final (fontSize, textFits) = _calculateFontSize(size, style, maxLines);
 
       Widget text;
 
@@ -305,7 +303,7 @@ class _AutoSizeTextState extends State<AutoSizeText> {
     }
   }
 
-  List _calculateFontSize(
+  (double, bool) _calculateFontSize(
       BoxConstraints size, TextStyle? style, int? maxLines) {
     final span = TextSpan(
       style: widget.textSpan?.style ?? style,
@@ -325,8 +323,12 @@ class _AutoSizeTextState extends State<AutoSizeText> {
       final num defaultFontSize =
           style!.fontSize!.clamp(widget.minFontSize, widget.maxFontSize);
       final defaultScale = defaultFontSize * userScale / style.fontSize!;
-      if (_checkTextFits(span, defaultScale, maxLines, size)) {
-        return <Object>[defaultFontSize * userScale, true];
+      final (fits, guess) = _checkTextFits(span, defaultScale, maxLines, size);
+      if (fits) {
+        return (defaultFontSize * userScale, true);
+      }
+      if (guess != null) {
+        return (guess * userScale, true);
       }
 
       left = (widget.minFontSize / widget.stepGranularity).floor();
@@ -345,7 +347,11 @@ class _AutoSizeTextState extends State<AutoSizeText> {
       } else {
         scale = presetFontSizes[mid] * userScale / style!.fontSize!;
       }
-      if (_checkTextFits(span, scale, maxLines, size)) {
+      final (fits, shortcut) = _checkTextFits(span, scale, maxLines, size);
+      if (shortcut != null) {
+        return (shortcut * userScale, true);
+      }
+      if (fits) {
         left = mid + 1;
         lastValueFits = true;
       } else {
@@ -364,10 +370,10 @@ class _AutoSizeTextState extends State<AutoSizeText> {
       fontSize = presetFontSizes[right] * userScale;
     }
 
-    return <Object>[fontSize, lastValueFits];
+    return (fontSize, lastValueFits);
   }
 
-  bool _checkTextFits(
+  (bool, double?) _checkTextFits(
       TextSpan text, double scale, int? maxLines, BoxConstraints constraints) {
     if (!widget.wrapWords) {
       final words = text.toPlainText().split(RegExp('\\s+'));
@@ -389,7 +395,7 @@ class _AutoSizeTextState extends State<AutoSizeText> {
 
       if (wordWrapTextPainter.didExceedMaxLines ||
           wordWrapTextPainter.width > constraints.maxWidth) {
-        return false;
+        return (false, null);
       }
     }
 
@@ -405,9 +411,20 @@ class _AutoSizeTextState extends State<AutoSizeText> {
 
     textPainter.layout(maxWidth: constraints.maxWidth);
 
-    return !(textPainter.didExceedMaxLines ||
-        textPainter.height > constraints.maxHeight ||
-        textPainter.width > constraints.maxWidth);
+    if (textPainter.didExceedMaxLines) {
+      return (false, null);
+    }
+
+    if ((textPainter.height > constraints.maxHeight || textPainter.width > constraints.maxWidth) && textPainter.computeLineMetrics().length == 1) {
+      // Only do this with single-line text
+      // I guess it would also be safe with multi line (hard linebreak only)
+      // But I don't use those with AutoSizeText really
+      final heightFactor = constraints.maxHeight.isFinite ? textPainter.height / constraints.maxHeight : 1;
+      final widthFactor = constraints.maxWidth.isFinite ? textPainter.width / constraints.maxWidth : 1;
+      return (false, scale / math.max(heightFactor, widthFactor));
+    }
+
+    return (!(textPainter.height > constraints.maxHeight || textPainter.width > constraints.maxWidth), null);
   }
 
   Widget _buildText(double fontSize, TextStyle style, int? maxLines) {
