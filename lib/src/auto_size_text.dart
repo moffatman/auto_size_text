@@ -328,7 +328,7 @@ class _AutoSizeTextState extends State<AutoSizeText> {
         return (defaultFontSize * userScale, true);
       }
       if (guess != null) {
-        return (guess * userScale, true);
+        return (defaultFontSize * guess, true);
       }
 
       left = (widget.minFontSize / widget.stepGranularity).floor();
@@ -347,9 +347,9 @@ class _AutoSizeTextState extends State<AutoSizeText> {
       } else {
         scale = presetFontSizes[mid] * userScale / style!.fontSize!;
       }
-      final (fits, shortcut) = _checkTextFits(span, scale, maxLines, size);
-      if (shortcut != null) {
-        return (shortcut * userScale, true);
+      final (fits, guess) = _checkTextFits(span, scale, maxLines, size);
+      if (guess != null) {
+        return (style.fontSize! * guess, true);
       }
       if (fits) {
         left = mid + 1;
