@@ -465,6 +465,7 @@ class _AutoSizeTextState extends State<AutoSizeText> {
       textDirection: widget.textDirection ?? TextDirection.ltr,
       textScaleFactor: scale,
       maxLines: maxLines,
+      ellipsis: widget.overflow == TextOverflow.ellipsis ? '\u2026' : null,
       locale: widget.locale,
       strutStyle: widget.strutStyle,
     );

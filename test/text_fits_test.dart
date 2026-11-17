@@ -135,6 +135,25 @@ void main() {
     );
   });
 
+  testWidgets('Text shrinks before ellipsizing', (tester) async {
+    await pump(
+      tester: tester,
+      widget: const SizedBox(
+        width: 100,
+        child: AutoSizeText(
+          'XXXXX',
+          style: TextStyle(fontSize: 60),
+          minFontSize: 1,
+          softWrap: false,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
+    );
+
+    expect(renderedFontSize(tester), 20);
+    expect(getRenderParagraph(tester).didExceedMaxLines, isFalse);
+  });
+
   testWidgets('Single-line shortcut still honors the size search', (tester) async {
     await pumpAndExpectFontSize(
       tester: tester,
