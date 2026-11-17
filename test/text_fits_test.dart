@@ -134,4 +134,38 @@ void main() {
       ),
     );
   });
+
+  testWidgets('Single-line shortcut still honors the size search', (tester) async {
+    await pumpAndExpectFontSize(
+      tester: tester,
+      expectedFontSize: 15,
+      widget: const SizedBox(
+        width: 100,
+        height: 17,
+        child: AutoSizeText(
+          'X',
+          style: TextStyle(fontSize: 60),
+          minFontSize: 5,
+          stepGranularity: 5,
+          maxLines: 1,
+        ),
+      ),
+    );
+
+    await pumpAndExpectFontSize(
+      tester: tester,
+      expectedFontSize: 15,
+      widget: const SizedBox(
+        width: 100,
+        height: 15,
+        child: AutoSizeText(
+          'X',
+          style: TextStyle(fontSize: 60),
+          minFontSize: 5,
+          maxFontSize: 30,
+          maxLines: 1,
+        ),
+      ),
+    );
+  });
 }

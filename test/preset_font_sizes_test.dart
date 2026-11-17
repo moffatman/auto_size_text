@@ -44,5 +44,19 @@ void main() {
         ),
       ),
     );
+
+    await pumpAndExpectFontSize(
+      tester: tester,
+      expectedFontSize: 20,
+      widget: const SizedBox(
+        width: 500,
+        height: 30,
+        child: AutoSizeText(
+          'XXXXX',
+          presetFontSizes: [60, 20, 5],
+          maxLines: 1,
+        ),
+      ),
+    );
   });
 }

@@ -359,6 +359,7 @@ class _AutoSizeTextState extends State<AutoSizeText> {
 
     int left;
     int right;
+    int? suggestedIndex;
 
     final presetFontSizes = widget.presetFontSizes?.reversed.toList();
     if (presetFontSizes == null) {
@@ -369,12 +370,16 @@ class _AutoSizeTextState extends State<AutoSizeText> {
       if (fits) {
         return (defaultFontSize * userScale, true);
       }
-      if (guess != null) {
-        return (defaultFontSize * guess, true);
-      }
 
       left = (widget.minFontSize / widget.stepGranularity).floor();
       right = (defaultFontSize / widget.stepGranularity).ceil();
+      if (guess != null && userScale > 0) {
+        suggestedIndex = (style.fontSize! * guess /
+                userScale /
+                widget.stepGranularity)
+            .floor()
+            .clamp(left, right);
+      }
     } else {
       left = 0;
       right = presetFontSizes.length - 1;
@@ -382,7 +387,13 @@ class _AutoSizeTextState extends State<AutoSizeText> {
 
     var lastValueFits = false;
     while (left <= right) {
-      final mid = (left + (right - left) / 2).floor();
+      final currentSuggestion = suggestedIndex;
+      final mid = currentSuggestion != null &&
+              currentSuggestion >= left &&
+              currentSuggestion <= right
+          ? currentSuggestion
+          : (left + (right - left) / 2).floor();
+      suggestedIndex = null;
       double scale;
       if (presetFontSizes == null) {
         scale = mid * userScale * widget.stepGranularity / style.fontSize!;
@@ -390,14 +401,21 @@ class _AutoSizeTextState extends State<AutoSizeText> {
         scale = presetFontSizes[mid] * userScale / style.fontSize!;
       }
       final (fits, guess) = _checkTextFits(span, scale, maxLines, size);
-      if (guess != null) {
-        return (style.fontSize! * guess, true);
-      }
       if (fits) {
         left = mid + 1;
         lastValueFits = true;
       } else {
         right = mid - 1;
+        if (guess != null &&
+            presetFontSizes == null &&
+            userScale > 0 &&
+            left <= right) {
+          suggestedIndex = (style.fontSize! * guess /
+                  userScale /
+                  widget.stepGranularity)
+              .floor()
+              .clamp(left, right);
+        }
       }
     }
 
