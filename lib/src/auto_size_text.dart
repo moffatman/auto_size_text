@@ -60,9 +60,9 @@ class AutoSizeText extends StatefulWidget {
   })  : data = null,
         super(key: key);
 
-  /// Sets the key for the resulting [Text] widget.
+  /// Sets the key for the widget that renders the text.
   ///
-  /// This allows you to find the actual `Text` widget built by `AutoSizeText`.
+  /// This allows you to find the text renderer built by `AutoSizeText`.
   final Key? textKey;
 
   /// The text to display.
@@ -239,38 +239,85 @@ class _AutoSizeTextState extends State<AutoSizeText> {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, size) {
-      final defaultTextStyle = DefaultTextStyle.of(context);
+    final defaultTextStyle = DefaultTextStyle.of(context);
 
-      var style = widget.style;
-      if (widget.style == null || widget.style!.inherit) {
-        style = defaultTextStyle.style.merge(widget.style);
-      }
-      if (style!.fontSize == null) {
-        style = style.copyWith(fontSize: AutoSizeText._defaultFontSize);
-      }
+    var style = widget.style;
+    if (widget.style == null || widget.style!.inherit) {
+      style = defaultTextStyle.style.merge(widget.style);
+    }
+    if (style!.fontSize == null) {
+      style = style.copyWith(fontSize: AutoSizeText._defaultFontSize);
+    }
+    if (MediaQuery.boldTextOf(context)) {
+      style = style.merge(const TextStyle(fontWeight: FontWeight.bold));
+    }
+    final effectiveStyle = style;
 
-      final maxLines = widget.maxLines ?? defaultTextStyle.maxLines;
+    final maxLines = widget.maxLines ?? defaultTextStyle.maxLines;
+    final userScale =
+        widget.textScaleFactor ?? MediaQuery.textScaleFactorOf(context);
 
-      _validateProperties(style, maxLines);
+    _validateProperties(effectiveStyle, maxLines);
 
-      final (fontSize, textFits) = _calculateFontSize(size, style, maxLines);
+    if (widget.group != null || widget.overflowReplacement != null) {
+      return LayoutBuilder(builder: (context, size) {
+        final (fontSize, textFits) =
+            _calculateFontSize(size, effectiveStyle, maxLines, userScale);
 
-      Widget text;
+        Widget text;
 
-      if (widget.group != null) {
-        widget.group!._updateFontSize(this, fontSize);
-        text = _buildText(widget.group!._fontSize, style, maxLines);
-      } else {
-        text = _buildText(fontSize, style, maxLines);
-      }
+        if (widget.group != null) {
+          widget.group!._updateFontSize(this, fontSize);
+          text = _buildText(widget.group!._fontSize, effectiveStyle, maxLines);
+        } else {
+          text = _buildText(fontSize, effectiveStyle, maxLines);
+        }
 
-      if (widget.overflowReplacement != null && !textFits) {
-        return widget.overflowReplacement!;
-      } else {
-        return text;
-      }
-    });
+        if (widget.overflowReplacement != null && !textFits) {
+          return widget.overflowReplacement!;
+        } else {
+          return text;
+        }
+      });
+    }
+
+    final span = _buildTextSpan(effectiveStyle);
+    Widget text = _AutoSizeTextLayout(
+      key: widget.textKey,
+      text: span,
+      baseFontSize: effectiveStyle.fontSize!,
+      textAlign: widget.textAlign ?? defaultTextStyle.textAlign ?? TextAlign.start,
+      textDirection: widget.textDirection ?? Directionality.of(context),
+      locale: widget.locale ?? Localizations.maybeLocaleOf(context),
+      strutStyle: widget.strutStyle,
+      softWrap: widget.softWrap ?? defaultTextStyle.softWrap,
+      maxLines: maxLines,
+      overflow: widget.overflow ?? effectiveStyle.overflow ?? defaultTextStyle.overflow,
+      textWidthBasis: defaultTextStyle.textWidthBasis,
+      textHeightBehavior: defaultTextStyle.textHeightBehavior ??
+          DefaultTextHeightBehavior.maybeOf(context),
+      registrar: SelectionContainer.maybeOf(context),
+      selectionColor: DefaultSelectionStyle.of(context).selectionColor ??
+          DefaultSelectionStyle.defaultColor,
+      calculateFontSize: (constraints) =>
+          _calculateFontSize(constraints, effectiveStyle, maxLines, userScale).$1,
+    );
+    if (widget.semanticsLabel != null) {
+      text = Semantics(
+        label: widget.semanticsLabel,
+        child: ExcludeSemantics(child: text),
+      );
+    }
+    return text;
+  }
+
+  TextSpan _buildTextSpan(TextStyle style) {
+    return TextSpan(
+      style: style,
+      text: widget.data,
+      children:
+          widget.textSpan == null ? null : <InlineSpan>[widget.textSpan!],
+    );
   }
 
   void _validateProperties(TextStyle style, int? maxLines) {
@@ -304,16 +351,11 @@ class _AutoSizeTextState extends State<AutoSizeText> {
   }
 
   (double, bool) _calculateFontSize(
-      BoxConstraints size, TextStyle? style, int? maxLines) {
-    final span = TextSpan(
-      style: widget.textSpan?.style ?? style,
-      text: widget.textSpan?.text ?? widget.data,
-      children: widget.textSpan?.children,
-      recognizer: widget.textSpan?.recognizer,
-    );
-
-    final userScale =
-        widget.textScaleFactor ?? MediaQuery.textScaleFactorOf(context);
+      BoxConstraints size,
+      TextStyle style,
+      int? maxLines,
+      double userScale) {
+    final span = _buildTextSpan(style);
 
     int left;
     int right;
@@ -321,7 +363,7 @@ class _AutoSizeTextState extends State<AutoSizeText> {
     final presetFontSizes = widget.presetFontSizes?.reversed.toList();
     if (presetFontSizes == null) {
       final num defaultFontSize =
-          style!.fontSize!.clamp(widget.minFontSize, widget.maxFontSize);
+          style.fontSize!.clamp(widget.minFontSize, widget.maxFontSize);
       final defaultScale = defaultFontSize * userScale / style.fontSize!;
       final (fits, guess) = _checkTextFits(span, defaultScale, maxLines, size);
       if (fits) {
@@ -343,9 +385,9 @@ class _AutoSizeTextState extends State<AutoSizeText> {
       final mid = (left + (right - left) / 2).floor();
       double scale;
       if (presetFontSizes == null) {
-        scale = mid * userScale * widget.stepGranularity / style!.fontSize!;
+        scale = mid * userScale * widget.stepGranularity / style.fontSize!;
       } else {
-        scale = presetFontSizes[mid] * userScale / style!.fontSize!;
+        scale = presetFontSizes[mid] * userScale / style.fontSize!;
       }
       final (fits, guess) = _checkTextFits(span, scale, maxLines, size);
       if (guess != null) {
@@ -471,5 +513,196 @@ class _AutoSizeTextState extends State<AutoSizeText> {
       widget.group!._remove(this);
     }
     super.dispose();
+  }
+}
+
+typedef _FontSizeCalculator = double Function(BoxConstraints constraints);
+
+class _AutoSizeTextLayout extends LeafRenderObjectWidget {
+  const _AutoSizeTextLayout({
+    super.key,
+    required this.text,
+    required this.baseFontSize,
+    required this.textAlign,
+    required this.textDirection,
+    required this.locale,
+    required this.strutStyle,
+    required this.softWrap,
+    required this.maxLines,
+    required this.overflow,
+    required this.textWidthBasis,
+    required this.textHeightBehavior,
+    required this.registrar,
+    required this.selectionColor,
+    required this.calculateFontSize,
+  });
+
+  final InlineSpan text;
+  final double baseFontSize;
+  final TextAlign textAlign;
+  final TextDirection textDirection;
+  final Locale? locale;
+  final StrutStyle? strutStyle;
+  final bool softWrap;
+  final int? maxLines;
+  final TextOverflow overflow;
+  final TextWidthBasis textWidthBasis;
+  final TextHeightBehavior? textHeightBehavior;
+  final SelectionRegistrar? registrar;
+  final Color selectionColor;
+  final _FontSizeCalculator calculateFontSize;
+
+  @override
+  RenderParagraph createRenderObject(BuildContext context) {
+    return _RenderAutoSizeText(
+      text: text,
+      baseFontSize: baseFontSize,
+      textAlign: textAlign,
+      textDirection: textDirection,
+      locale: locale,
+      strutStyle: strutStyle,
+      softWrap: softWrap,
+      maxLines: maxLines,
+      overflow: overflow,
+      textWidthBasis: textWidthBasis,
+      textHeightBehavior: textHeightBehavior,
+      registrar: registrar,
+      selectionColor: selectionColor,
+      calculateFontSize: calculateFontSize,
+    );
+  }
+
+  @override
+  void updateRenderObject(
+      BuildContext context, covariant _RenderAutoSizeText renderObject) {
+    renderObject
+      ..text = text
+      ..baseFontSize = baseFontSize
+      ..textAlign = textAlign
+      ..textDirection = textDirection
+      ..locale = locale
+      ..strutStyle = strutStyle
+      ..softWrap = softWrap
+      ..maxLines = maxLines
+      ..overflow = overflow
+      ..textWidthBasis = textWidthBasis
+      ..textHeightBehavior = textHeightBehavior
+      ..registrar = registrar
+      ..selectionColor = selectionColor
+      ..calculateFontSize = calculateFontSize;
+  }
+}
+
+class _RenderAutoSizeText extends RenderParagraph {
+  _RenderAutoSizeText({
+    required InlineSpan text,
+    required double baseFontSize,
+    required TextAlign textAlign,
+    required TextDirection textDirection,
+    required Locale? locale,
+    required StrutStyle? strutStyle,
+    required bool softWrap,
+    required int? maxLines,
+    required TextOverflow overflow,
+    required TextWidthBasis textWidthBasis,
+    required TextHeightBehavior? textHeightBehavior,
+    required SelectionRegistrar? registrar,
+    required Color selectionColor,
+    required _FontSizeCalculator calculateFontSize,
+  })  : _baseFontSize = baseFontSize,
+        _calculateFontSize = calculateFontSize,
+        super(
+          text,
+          textAlign: textAlign,
+          textDirection: textDirection,
+          locale: locale,
+          strutStyle: strutStyle,
+          softWrap: softWrap,
+          maxLines: maxLines,
+          overflow: overflow,
+          textWidthBasis: textWidthBasis,
+          textHeightBehavior: textHeightBehavior,
+          registrar: registrar,
+          selectionColor: selectionColor,
+        );
+
+  double _baseFontSize;
+  _FontSizeCalculator _calculateFontSize;
+
+  set baseFontSize(double value) {
+    if (_baseFontSize == value) return;
+    _baseFontSize = value;
+    markNeedsLayout();
+  }
+
+  set calculateFontSize(_FontSizeCalculator value) {
+    _calculateFontSize = value;
+    markNeedsLayout();
+  }
+
+  TextPainter _createTextPainter(double fontSize) {
+    return TextPainter(
+      text: text,
+      textAlign: textAlign,
+      textDirection: textDirection,
+      textScaler: TextScaler.linear(fontSize / _baseFontSize),
+      maxLines: maxLines,
+      ellipsis: overflow == TextOverflow.ellipsis ? '\u2026' : null,
+      locale: locale,
+      strutStyle: strutStyle,
+      textWidthBasis: textWidthBasis,
+      textHeightBehavior: textHeightBehavior,
+    );
+  }
+
+  TextPainter _layoutText(BoxConstraints constraints) {
+    final painter = _createTextPainter(_calculateFontSize(constraints));
+    painter.layout(
+      minWidth: constraints.minWidth,
+      maxWidth: softWrap || overflow == TextOverflow.ellipsis
+          ? constraints.maxWidth
+          : double.infinity,
+    );
+    return painter;
+  }
+
+  @override
+  double computeMinIntrinsicWidth(double height) {
+    final painter = _layoutText(BoxConstraints(maxHeight: height));
+    return painter.minIntrinsicWidth;
+  }
+
+  @override
+  double computeMaxIntrinsicWidth(double height) {
+    final painter = _layoutText(BoxConstraints(maxHeight: height));
+    return painter.maxIntrinsicWidth;
+  }
+
+  @override
+  double computeMinIntrinsicHeight(double width) {
+    return _layoutText(BoxConstraints(maxWidth: width)).height;
+  }
+
+  @override
+  double computeMaxIntrinsicHeight(double width) {
+    return _layoutText(BoxConstraints(maxWidth: width)).height;
+  }
+
+  @override
+  Size computeDryLayout(covariant BoxConstraints constraints) {
+    return constraints.constrain(_layoutText(constraints).size);
+  }
+
+  @override
+  double computeDryBaseline(
+      covariant BoxConstraints constraints, TextBaseline baseline) {
+    return _layoutText(constraints).computeDistanceToActualBaseline(baseline);
+  }
+
+  @override
+  void performLayout() {
+    final fontSize = _calculateFontSize(constraints);
+    textPainter.textScaler = TextScaler.linear(fontSize / _baseFontSize);
+    super.performLayout();
   }
 }

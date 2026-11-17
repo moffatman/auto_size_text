@@ -46,7 +46,7 @@ void main() {
       fontSize: 20,
       color: Colors.yellow,
     );
-    final text = await pumpAndGetText(
+    await pump(
       tester: tester,
       widget: DefaultTextStyle(
         style: defaultStyle,
@@ -59,13 +59,12 @@ void main() {
         ),
       ),
     );
-    expect(text.style, defaultStyle);
-
-    final richText = getRichText(tester);
-    expect(richText.textAlign, TextAlign.right);
-    expect(richText.softWrap, false);
-    expect(richText.overflow, TextOverflow.ellipsis);
-    expect(richText.maxLines, 17);
+    final paragraph = getRenderParagraph(tester);
+    expect((paragraph.text as TextSpan).style, defaultStyle);
+    expect(paragraph.textAlign, TextAlign.right);
+    expect(paragraph.softWrap, false);
+    expect(paragraph.overflow, TextOverflow.ellipsis);
+    expect(paragraph.maxLines, 17);
   });
 
   testWidgets('Applies scale even if initial fontSize fits (#25)',
@@ -83,13 +82,35 @@ void main() {
 
   testWidgets('Uses textKey', (tester) async {
     final textKey = GlobalKey();
-    final text = await pumpAndGetText(
+    await pump(
       tester: tester,
       widget: AutoSizeText(
         'A text with key',
         textKey: textKey,
       ),
     );
-    expect(text.key, textKey);
+    expect(find.byKey(textKey), findsOneWidget);
+  });
+
+  testWidgets('Supports intrinsic measurement without LayoutBuilder',
+      (tester) async {
+    await pump(
+      tester: tester,
+      widget: const SizedBox(
+        height: 30,
+        child: IntrinsicWidth(
+          child: AutoSizeText(
+            'Intrinsic text',
+            style: TextStyle(fontSize: 20),
+            maxLines: 1,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byType(LayoutBuilder), findsNothing);
+    final renderBox =
+        tester.renderObject<RenderBox>(find.byType(AutoSizeText));
+    expect(renderBox.getMaxIntrinsicWidth(30), greaterThan(0));
   });
 }

@@ -14,7 +14,7 @@ void main() {
         maxLines: 1,
       ),
     );
-    var height = tester.getSize(find.byType(RichText)).height;
+    var height = tester.getSize(renderParagraphFinder).height;
     expect(height, 27);
 
     await pump(
@@ -28,7 +28,7 @@ void main() {
         ),
       ),
     );
-    height = tester.getSize(find.byType(RichText)).height;
+    height = tester.getSize(renderParagraphFinder).height;
     expect(height, 50);
   });
 

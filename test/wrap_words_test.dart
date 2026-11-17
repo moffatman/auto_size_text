@@ -18,7 +18,7 @@ void main() {
         ),
       ),
     );
-    var height = tester.getSize(find.byType(RichText)).height;
+    var height = tester.getSize(renderParagraphFinder).height;
     expect(height, 40);
 
     await pumpAndExpectFontSize(
@@ -35,7 +35,7 @@ void main() {
         ),
       ),
     );
-    height = tester.getSize(find.byType(RichText)).height;
+    height = tester.getSize(renderParagraphFinder).height;
     expect(height, 20);
   });
 
@@ -52,7 +52,7 @@ void main() {
         ),
       ),
     );
-    final height = tester.getSize(find.byType(RichText)).height;
+    final height = tester.getSize(renderParagraphFinder).height;
     expect(height, 60);
   });
 }
